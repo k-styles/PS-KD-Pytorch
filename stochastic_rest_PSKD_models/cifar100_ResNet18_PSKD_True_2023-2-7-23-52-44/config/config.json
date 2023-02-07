@@ -1,0 +1,28 @@
+{
+  "lr": 0.1,
+  "lr_decay_rate": 0.1,
+  "lr_decay_schedule": [
+    60,
+    120,
+    160
+  ],
+  "weight_decay": 0.0005,
+  "start_epoch": 0,
+  "end_epoch": 300,
+  "PSKD": true,
+  "batch_size": 128,
+  "experiments_dir": "stochastic_rest_PSKD_models/",
+  "classifier_type": "ResNet18",
+  "data_path": "/home/ramyah/scratch/Data/cifar-100-python/",
+  "data_type": "cifar100",
+  "alpha_T": 0.8,
+  "saveckp_freq": 299,
+  "rank": -1,
+  "world_size": 1,
+  "dist_backend": "nccl",
+  "dist_url": "tcp://127.0.0.1:8080",
+  "workers": 40,
+  "multiprocessing_distributed": false,
+  "resume": null,
+  "rst": 0.1
+}

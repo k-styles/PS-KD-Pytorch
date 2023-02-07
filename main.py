@@ -47,6 +47,11 @@ import numpy as np
 
 
 #----------------------------------------------------
+#  Deepcopy
+#----------------------------------------------------
+from copy import deepcopy
+
+#----------------------------------------------------
 #  Training Setting parser
 #----------------------------------------------------
 
@@ -80,6 +85,10 @@ def parse_args():
                          'multi node data parallel training')
     parser.add_argument('--resume', type=str, default=None, help='load model path')
 
+    # Stochastic Restore parameter
+    parser.add_argument('--rst', type=float, default=0.1, help='restoration parameter (refer COTTA)')
+    
+
     args = parser.parse_args()
     return check_args(args)
 
@@ -98,7 +107,18 @@ def check_args(args):
         print('batch size must be larger than or equal to one')
 
     return args
-    
+
+# Stochastic restore helper
+def copy_model_and_optimizer(model, optimizer):
+    """Copy the model and optimizer states for resetting after adaptation."""
+    model_state = deepcopy(model.state_dict())
+    model_anchor = deepcopy(model)
+    optimizer_state = deepcopy(optimizer.state_dict())
+    ema_model = deepcopy(model)
+    for param in ema_model.parameters():
+        param.detach_()
+    return model_state, optimizer_state, ema_model, model_anchor
+
 #----------------------------------------------------
 #  Adjust_learning_rate & get_learning_rate  
 #----------------------------------------------------
@@ -377,7 +397,7 @@ def main_worker(gpu, ngpus_per_node, model_dir, log_dir, args):
     if args.distributed:
         dist.barrier()
         dist.destroy_process_group()
-        print(C.green("[!] [Rank {}] Distroy Distributed process".format(args.rank)))
+        print(C.green("[!] [Rank {}] Destroy Distributed process".format(args.rank)))
 
 
 
@@ -454,6 +474,16 @@ def train(all_predictions,
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+ 
+        # Stochastic restore
+        model_state, _, _, _ = copy_model_and_optimizer(net, optimizer)
+        if True:
+            for nm, m  in net.named_modules():
+                for npp, p in m.named_parameters():
+                    if npp in ['weight', 'bias'] and p.requires_grad:
+                        mask = (torch.rand(p.shape)<args.rst).float().cuda() 
+                        with torch.no_grad():
+                            p.data = model_state[f"{nm}.{npp}"] * mask + p * (1.-mask)
 
         _, predicted = torch.max(outputs, 1)
         total += targets.size(0)
